@@ -132,46 +132,64 @@ export const generateAutocompleteOptions = (nodes: WorkflowNode[]): VariableSche
 };
 
 /**
+ * Builds the execution context object containing node data and helper functions.
+ */
+export const buildEvaluationContext = (nodes: WorkflowNode[]): Record<string, any> => {
+    const context: Record<string, any> = {};
+    nodes.forEach(node => {
+      context[node.name] = node.data;
+    });
+    Object.assign(context, FORMATTERS);
+    return context;
+};
+
+/**
+ * Validates a single code snippet against the given context.
+ * Used for real-time syntax highlighting.
+ */
+export const validateSnippet = (code: string, context: Record<string, any>): { isValid: boolean; message?: string } => {
+    try {
+        const argNames = Object.keys(context);
+        const argValues = Object.values(context);
+        const cleanCode = code.trim().replace(/&gt;/g, '>').replace(/&lt;/g, '<');
+        
+        const fn = new Function(...argNames, `return (${cleanCode});`);
+        // We execute it to catch runtime errors (e.g. reading property of undefined)
+        fn(...argValues); 
+        
+        return { isValid: true };
+    } catch (err) {
+        return { 
+            isValid: false, 
+            message: err instanceof Error ? err.message : String(err) 
+        };
+    }
+};
+
+/**
  * Evaluates the full expression string by executing JS inside {{ ... }}
  */
 export const evaluateExpression = (expression: string, nodes: WorkflowNode[]): string => {
   if (!expression) return '';
+  const context = buildEvaluationContext(nodes);
 
-  // 1. Build the Context Object
-  // Top-level keys will be node names (e.g. 'Webhook', 'Stripe')
-  const context: Record<string, any> = {};
-  
-  nodes.forEach(node => {
-    context[node.name] = node.data;
-  });
-
-  // Add formatters to context (e.g. 'toUpper', 'formatDate')
-  Object.assign(context, FORMATTERS);
-
-  // 2. Process the string
+  // Process the string
   return expression.replace(EXPRESSION_REGEX, (match, code) => {
     try {
-        // Create a function that takes the context keys as arguments
         const argNames = Object.keys(context);
         const argValues = Object.values(context);
         
-        // "return " + code ensures expressions like "Webhook.id" return the value.
-        // We use a safe-ish way to access properties, but it's still eval-like.
-        // In a real app, use a sandboxed parser like 'jsep' or 'vm'.
-        // For this UI demo, new Function is acceptable.
-        
-        // We unescape HTML entities if any (simple browser implementation) just in case
+        // Unescape HTML entities
         const cleanCode = code.trim().replace(/&gt;/g, '>').replace(/&lt;/g, '<');
         
         const fn = new Function(...argNames, `return (${cleanCode});`);
         const result = fn(...argValues);
 
         if (result === undefined) return '';
-        if (typeof result === 'object') return JSON.stringify(result); // Default object to JSON string in output
+        if (typeof result === 'object') return JSON.stringify(result); 
         return String(result);
 
     } catch (err) {
-        // console.error("Eval error", err);
         return `[Error: ${err instanceof Error ? err.message : 'Invalid Expression'}]`;
     }
   });

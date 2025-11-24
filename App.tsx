@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { MOCK_NODES } from './services/mockData';
 import { Sidebar } from './components/Sidebar';
 import { ExpressionEditor } from './components/ExpressionEditor';
-import { evaluateExpression, generateAutocompleteOptions } from './utils/expressionUtils';
+import { evaluateExpression, generateAutocompleteOptions, buildEvaluationContext, validateSnippet } from './utils/expressionUtils';
 import { Sparkles, Terminal } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -28,6 +28,12 @@ const App: React.FC = () => {
   const variableOptions = useMemo(() => {
     return generateAutocompleteOptions(MOCK_NODES);
   }, []);
+
+  // Build a reusable validator function for the editor
+  const evaluationContext = useMemo(() => buildEvaluationContext(MOCK_NODES), []);
+  const validator = useCallback((code: string) => {
+    return validateSnippet(code, evaluationContext);
+  }, [evaluationContext]);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100">
@@ -78,6 +84,7 @@ const App: React.FC = () => {
                     onInsertComplete={handleInsertComplete}
                     resolvedValue={resolvedValue}
                     variables={variableOptions}
+                    validator={validator}
                 />
             </div>
 
