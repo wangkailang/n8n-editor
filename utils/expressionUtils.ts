@@ -1,4 +1,4 @@
-import { WorkflowNode, DataType } from '../types';
+import { WorkflowNode, DataType, VariableSchema } from '../types';
 
 // Regex to identify {{ NodeName.path.to.variable }}
 // We allow spaces inside the braces for forgiveness: {{  Node.value  }}
@@ -10,10 +10,10 @@ const VARIABLE_REGEX = /\{\{\s*([a-zA-Z0-9_\-\.]+)\s*\}\}/g;
 export const flattenObjectToSchema = (
   obj: any,
   parentPath: string = ''
-): any[] => {
+): VariableSchema[] => {
   if (obj === null || obj === undefined) return [];
 
-  const schema: any[] = [];
+  const schema: VariableSchema[] = [];
 
   Object.keys(obj).forEach((key) => {
     const value = obj[key];
@@ -26,7 +26,7 @@ export const flattenObjectToSchema = (
       ? DataType.OBJECT
       : (typeof value as DataType);
 
-    const item = {
+    const item: VariableSchema = {
       path: currentPath,
       key,
       type,
@@ -36,12 +36,21 @@ export const flattenObjectToSchema = (
 
     schema.push(item);
 
-    // Recursively add children if needed for a flat list, 
-    // but for tree view we might handle this differently in the component.
-    // Here we return a structure suitable for recursive rendering.
+    // Recursively add children for the tree view if needed, 
+    // but for autocomplete we prefer a flat list of all paths.
+    if (type === DataType.OBJECT && value !== null && !Array.isArray(value)) {
+        schema.push(...flattenObjectToSchema(value, currentPath));
+    }
   });
 
   return schema;
+};
+
+/**
+ * Generates a flat list of all variables available from the nodes for autocomplete
+ */
+export const generateAutocompleteOptions = (nodes: WorkflowNode[]): VariableSchema[] => {
+  return nodes.flatMap(node => flattenObjectToSchema(node.data, node.name));
 };
 
 /**

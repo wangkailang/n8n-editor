@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { MOCK_NODES } from './services/mockData';
 import { Sidebar } from './components/Sidebar';
 import { ExpressionEditor } from './components/ExpressionEditor';
-import { evaluateExpression } from './utils/expressionUtils';
+import { evaluateExpression, generateAutocompleteOptions } from './utils/expressionUtils';
 import { Sparkles, Terminal } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -23,6 +23,11 @@ const App: React.FC = () => {
   const resolvedValue = useMemo(() => {
     return evaluateExpression(expression, MOCK_NODES);
   }, [expression]);
+
+  // Generate autocomplete options
+  const variableOptions = useMemo(() => {
+    return generateAutocompleteOptions(MOCK_NODES);
+  }, []);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-slate-100">
@@ -72,12 +77,15 @@ const App: React.FC = () => {
                     insertPath={insertPath}
                     onInsertComplete={handleInsertComplete}
                     resolvedValue={resolvedValue}
+                    variables={variableOptions}
                 />
             </div>
 
             {/* Hint Footer */}
             <div className="text-xs text-slate-400 text-center pb-2">
                 Tip: You can perform basic JavaScript operations inside <code className="bg-slate-200 px-1 rounded text-slate-600">{'{{ }}'}</code> blocks (Simulated).
+                <br/>
+                Type <code className="bg-slate-200 px-1 rounded text-slate-600">{'{{'}</code> to trigger autocomplete.
             </div>
           </div>
         </div>
