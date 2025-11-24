@@ -53,6 +53,19 @@ const FORMATTERS: Record<string, Function> = {
   length: (item: any) => (item && item.length !== undefined ? item.length : 0),
 };
 
+const FUNCTION_METADATA: Record<string, { description: string, usage: string }> = {
+    toUpper: { description: 'Converts a string to uppercase.', usage: 'toUpper(value)' },
+    toLower: { description: 'Converts a string to lowercase.', usage: 'toLower(value)' },
+    truncate: { description: 'Truncates a string to a specified length.', usage: 'truncate(value, 10)' },
+    formatDate: { description: 'Formats a date string or object.', usage: "formatDate(value, 'YYYY-MM-DD')" },
+    now: { description: 'Returns the current date and time.', usage: 'now()' },
+    formatCurrency: { description: 'Formats a number as currency.', usage: "formatCurrency(100, 'USD')" },
+    round: { description: 'Rounds a number to specified decimal places.', usage: 'round(10.555, 2)' },
+    json: { description: 'Stringifies an object/array to JSON.', usage: 'json(value)' },
+    join: { description: 'Joins array elements into a string.', usage: "join(value, ', ')" },
+    length: { description: 'Returns the length of a string or array.', usage: 'length(value)' },
+};
+
 /**
  * flattens a JSON object into a list of paths
  */
@@ -98,7 +111,11 @@ export const flattenObjectToSchema = (
  */
 export const generateAutocompleteOptions = (nodes: WorkflowNode[]): VariableSchema[] => {
   // 1. Node Variables
-  const variables = nodes.flatMap(node => flattenObjectToSchema(node.data, node.name));
+  const variables = nodes.flatMap(node => flattenObjectToSchema(node.data, node.name)).map(v => ({
+    ...v,
+    description: typeof v.value === 'object' ? 'Object/Array Variable' : `Current Value: ${String(v.value).substring(0, 50)}`,
+    usage: `{{ ${v.path} }}`
+  }));
 
   // 2. Built-in Functions
   const functions: VariableSchema[] = Object.keys(FORMATTERS).map(fnName => ({
@@ -106,7 +123,9 @@ export const generateAutocompleteOptions = (nodes: WorkflowNode[]): VariableSche
     key: fnName,
     type: DataType.FUNCTION,
     value: 'Function',
-    isExpandable: false
+    isExpandable: false,
+    description: FUNCTION_METADATA[fnName]?.description || 'Built-in helper function',
+    usage: FUNCTION_METADATA[fnName]?.usage || `${fnName}(...)`
   }));
 
   return [...functions, ...variables];

@@ -23,6 +23,10 @@ export interface VariableSchema {
   parentPath?: string;
   isExpandable: boolean;
   children?: VariableSchema[];
+  description?: string;
+  usage?: string;
 }
 
 export type InsertionCallback = (path: string) => void;
+
+export type Validator = (expression: string) => { isValid: boolean; message?: string };

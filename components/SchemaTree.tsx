@@ -51,11 +51,14 @@ const SchemaItem: React.FC<{
     setIsOpen(!isOpen);
   };
 
+  const displayValue = typeof value === 'object' ? '' : String(value);
+
   return (
     <div className="select-none">
       <div
         className={`flex items-center group py-1 pr-2 rounded cursor-pointer hover:bg-slate-100 transition-colors ${level > 0 ? 'ml-3' : ''}`}
         onClick={isExpandable ? handleToggle : handleInsert}
+        title={isExpandable ? `${path} (Expand)` : `Path: ${path}\nValue: ${displayValue}`}
       >
         <div className="flex-shrink-0 w-4 h-4 mr-1 flex items-center justify-center text-slate-400">
           {isExpandable && (
