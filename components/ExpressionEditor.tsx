@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Copy, Check, Hash, Type, ToggleLeft, Box, Braces, Brackets } from 'lucide-react';
+import { Copy, Check, Hash, Type, ToggleLeft, Box, Braces, Brackets, Wand2 } from 'lucide-react';
 import { VariableSchema, DataType } from '../types';
 import { getVariableTypeColor } from '../utils/expressionUtils';
 
@@ -20,6 +20,7 @@ const TypeIcon: React.FC<{ type: string }> = ({ type }) => {
     case DataType.BOOLEAN: return <ToggleLeft className={className} />;
     case DataType.OBJECT: return <Braces className={className} />;
     case DataType.ARRAY: return <Brackets className={className} />;
+    case DataType.FUNCTION: return <Wand2 className={className} />;
     default: return <Box className={className} />;
   }
 };
@@ -50,8 +51,6 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
       backdropRef.current.scrollTop = textareaRef.current.scrollTop;
       backdropRef.current.scrollLeft = textareaRef.current.scrollLeft;
       
-      // If menu is open, we should ideally close it or re-calculate, 
-      // but for simplicity let's close it on scroll to avoid floating issues
       if (showMenu) setShowMenu(false);
     }
   };
@@ -63,12 +62,11 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       
-      const variableToken = `{{${insertPath}}}`;
+      const variableToken = `{{ ${insertPath} }}`;
       const newValue = value.substring(0, start) + variableToken + value.substring(end);
       
       onChange(newValue);
       
-      // Move cursor after insertion
       requestAnimationFrame(() => {
         textarea.selectionStart = textarea.selectionEnd = start + variableToken.length;
         textarea.focus();
@@ -85,16 +83,13 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Calculate coordinates for the Autocomplete Menu
   const getCaretCoordinates = () => {
     const textarea = textareaRef.current;
     if (!textarea) return { top: 0, left: 0 };
     
-    // Create a dummy div to mirror the textarea properties
     const div = document.createElement('div');
     const style = getComputedStyle(textarea);
     
-    // Copy relevant styles
     const properties = [
       'direction', 'boxSizing', 'width', 'height', 'overflowX', 'overflowY',
       'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'borderStyle',
@@ -115,19 +110,15 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
     div.style.whiteSpace = 'pre-wrap';
     div.style.wordWrap = 'break-word';
 
-    // Set text content up to cursor
     const text = textarea.value.substring(0, textarea.selectionStart);
     div.textContent = text;
 
-    // Create a span at the end to get coordinates
     const span = document.createElement('span');
     span.textContent = '.';
     div.appendChild(span);
 
     document.body.appendChild(div);
 
-    // Calculate relative coordinates
-    // We need to account for the textarea's scroll
     const relativeTop = span.offsetTop - textarea.scrollTop;
     const relativeLeft = span.offsetLeft - textarea.scrollLeft;
     const lineHeight = parseInt(style.lineHeight) || 20;
@@ -135,39 +126,31 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
     document.body.removeChild(div);
 
     return {
-      top: relativeTop + lineHeight, // Position below the line
+      top: relativeTop + lineHeight,
       left: relativeLeft
     };
   };
 
-  // Logic to detect autocomplete trigger
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newVal = e.target.value;
     onChange(newVal);
     
     const cursor = e.target.selectionStart;
     
-    // Look backwards from cursor for '{{'
-    // Limit lookback to reasonable amount (e.g., 50 chars) to stay performant and relevant
+    // Improved regex to find '{{' token closer to cursor
+    // Allows for {{ functionName( }} as well, but primarily we want to autocomplete path start
     const lookback = newVal.substring(Math.max(0, cursor - 50), cursor);
+    
+    // Match anything after the last {{
     const match = lookback.match(/\{\{\s*([a-zA-Z0-9_\.]*)$/);
 
     if (match) {
-        // Found a potential open tag.
-        // Check if there is a closing tag '}}' immediately after or before the next newline
-        // If the user already closed it, we might still want to edit if they are inside.
-        // But specifically, we want to avoid triggering if we are OUTSIDE.
-        // The regex `\{\{...$` ensures we are inside an unclosed segment relative to the cursor position.
-        
-        // Also ensure we are not already closed by looking ahead? 
-        // Simpler: Just trigger if we match the pattern ending at cursor.
         const typedQuery = match[1];
         const matchIndex = Math.max(0, cursor - 50) + match.index!;
         
         setTriggerIndex(matchIndex);
         setQuery(typedQuery);
         
-        // Filter variables
         const filtered = variables.filter(v => 
             v.path.toLowerCase().includes(typedQuery.toLowerCase())
         );
@@ -187,7 +170,6 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
     }
   };
 
-  // Keyboard Navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!showMenu) return;
 
@@ -211,33 +193,37 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    // Replace the query part with the full path
-    // We know triggerIndex is where '{{' starts
-    // We assume the query goes up to current cursor position
+    // We replace from the triggerIndex (where {{ starts) up to cursor?
+    // Actually, handleInputChange sets triggerIndex at `{{`.
+    // The query part is `{{ query`.
     const beforeTrigger = value.substring(0, triggerIndex);
     const afterCursor = value.substring(textarea.selectionEnd);
     
-    // We want the result to be `{{ Variable.Path }}`
-    // If the user typed `{{ Var`, we replace `{{ Var` with `{{ Variable.Path }}`
-    // We add spaces for nicer formatting if desired, e.g. `{{ path }}`
-    const newValue = `${beforeTrigger}{{ ${variable.path} }}${afterCursor}`;
+    // For functions, we might want to add parens automatically
+    let insertion = `{{ ${variable.path} }}`;
+    let cursorOffset = insertion.length;
+
+    if (variable.type === DataType.FUNCTION) {
+        insertion = `{{ ${variable.path}() }}`;
+        cursorOffset = insertion.length - 3; // Position inside parens: "function(|) }}"
+    }
+    
+    const newValue = `${beforeTrigger}${insertion}${afterCursor}`;
     
     onChange(newValue);
     setShowMenu(false);
     
     requestAnimationFrame(() => {
-        // Place cursor after the inserted variable
-        const newCursorPos = beforeTrigger.length + variable.path.length + 5; // {{_ + _}} length
+        const newCursorPos = beforeTrigger.length + cursorOffset;
         textarea.selectionStart = textarea.selectionEnd = newCursorPos;
         textarea.focus();
     });
   };
 
-  // Highlight Logic: Wrap {{...}} in span
   const getHighlightedText = () => {
     if (!value) return <br />; 
     
-    const parts = value.split(/(\{\{[^}]+\}\})/g);
+    const parts = value.split(/(\{\{.*?\}\})/g);
     
     return (
       <>
@@ -260,8 +246,6 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
   };
 
   return (
-    // Removed overflow-hidden from here to allow popup to potentially flow out if needed,
-    // though ideally it stays within container. We keep container relative.
     <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-slate-200">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50 rounded-t-lg">
@@ -298,10 +282,10 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             onScroll={handleScroll}
-            onClick={() => setShowMenu(false)} // Close menu on click elsewhere
+            onClick={() => setShowMenu(false)} 
             className="absolute inset-0 w-full h-full p-4 font-mono text-sm leading-6 bg-transparent text-transparent caret-indigo-600 border-none resize-none focus:ring-0 z-10 whitespace-pre-wrap break-words overflow-auto outline-none selection:bg-indigo-500/20"
             spellCheck={false}
-            placeholder="Type {{ to select variables..."
+            placeholder="Type {{ to select variables or functions..."
         />
 
         {/* Autocomplete Menu */}
@@ -315,7 +299,7 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
                 }}
             >
                 <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500">
-                    Select Variable
+                    Suggestions
                 </div>
                 <ul className="overflow-y-auto flex-1 py-1">
                     {filteredOptions.map((option, idx) => (

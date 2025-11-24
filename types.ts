@@ -4,7 +4,8 @@ export enum DataType {
   BOOLEAN = 'boolean',
   OBJECT = 'object',
   ARRAY = 'array',
-  NULL = 'null'
+  NULL = 'null',
+  FUNCTION = 'function'
 }
 
 export interface WorkflowNode {

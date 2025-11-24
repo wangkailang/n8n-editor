@@ -18,6 +18,7 @@ export const MOCK_NODES: WorkflowNode[] = [
       body: {
         user_id: 8842,
         email: 'alice.doe@example.com',
+        created_at: '2023-11-15T14:30:00.000Z',
         preferences: {
           newsletter: true,
           notifications: false,
@@ -40,7 +41,9 @@ export const MOCK_NODES: WorkflowNode[] = [
       last_charge: {
         id: 'ch_123456',
         amount: 2900,
+        currency: 'usd',
         status: 'succeeded',
+        created: 1700050000,
       },
     },
   },
@@ -50,6 +53,7 @@ export const MOCK_NODES: WorkflowNode[] = [
     type: 'function',
     data: {
       calculatedScore: 95.5,
+      processedDate: new Date().toISOString(),
       isPremium: true,
       summary: 'Customer is in good standing.',
     },
