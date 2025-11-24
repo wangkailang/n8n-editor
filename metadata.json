@@ -1,0 +1,5 @@
+{
+  "name": "n8n-editor",
+  "description": "A React-based variable expression editor inspired by n8n, featuring variable injection, syntax highlighting, and real-time data resolution.",
+  "requestFramePermissions": []
+}
